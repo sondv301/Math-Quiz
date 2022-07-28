@@ -32,12 +32,14 @@ class PlayPage extends StatefulWidget {
 
 class _PlayPageState extends State<PlayPage> {
   Timer timer = Timer(const Duration(), () {});
+  DateTime initTime = DateTime.now();
   int maxTime = 5;
   int time = 5;
   int level = 1;
   int score = 0;
   var quiz = [];
   double process = 1.0;
+  int playAgainCount = 0;
 
   final BannerAd myBanner = BannerAd(
     adUnitId: AdsHelper.adBanner,
@@ -51,9 +53,10 @@ class _PlayPageState extends State<PlayPage> {
 
   @override
   void initState() {
+    super.initState();
     quiz = MathHelper.initMath(widget.maths, level);
     timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if(time <= 0){
+      if (time <= 0) {
         timer.cancel();
         _showResult(context);
       }
@@ -61,35 +64,31 @@ class _PlayPageState extends State<PlayPage> {
       setState(() => process = time / maxTime);
     });
     myBanner.load();
-    _createInter();
-    super.initState();
   }
-  void _createInter(){
+
+  void _createInter() {
     InterstitialAd.load(
         adUnitId: AdsHelper.adInter,
-        request: const AdRequest(keywords: ['math','quiz']),
+        request: const AdRequest(keywords: ['math', 'quiz']),
         adLoadCallback: InterstitialAdLoadCallback(
           onAdLoaded: (InterstitialAd ad) {
-            // Keep a reference to the ad so you can show it later.
             myInter = ad;
           },
-          onAdFailedToLoad: (LoadAdError error) {
-          },
+          onAdFailedToLoad: (LoadAdError error) {},
         ));
   }
+
   Future<void> _showInterAd() async {
-    if(myInter == null) return;
+    if (myInter == null) return;
     myInter?.fullScreenContentCallback = FullScreenContentCallback(
-      onAdShowedFullScreenContent: (InterstitialAd ad){},
+      onAdShowedFullScreenContent: (InterstitialAd ad) {},
       onAdDismissedFullScreenContent: (InterstitialAd ad) {
         ad.dispose();
-        _createInter();
       },
       onAdFailedToShowFullScreenContent: (InterstitialAd ad, AdError error) {
         ad.dispose();
-        _createInter();
       },
-      onAdImpression: (InterstitialAd ad){},
+      onAdImpression: (InterstitialAd ad) {},
     );
     await myInter?.show();
     myInter = null;
@@ -268,7 +267,16 @@ class _PlayPageState extends State<PlayPage> {
   }
 
   Future<void> _showResult(context) async {
-    await _showInterAd();
+    // check show ads
+    var currentTime = DateTime.now();
+    if (playAgainCount >= 5 && (currentTime.minute - initTime.minute >= 3)) {
+      _createInter();
+      await _showInterAd();
+      setState(() {
+        playAgainCount = 0;
+        initTime = DateTime.now();
+      });
+    }
     showDialog(
         context: context,
         barrierDismissible: false,
@@ -298,6 +306,16 @@ class _PlayPageState extends State<PlayPage> {
                   ),
                   MaterialButton(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    onPressed: () => _onPlayAgain(),
+                    minWidth: 98,
+                    color: Colors.white24,
+                    child: Text(
+                      "Play Again",
+                      style: GoogleFonts.rubik(color: Colors.white),
+                    ),
+                  ),
+                  MaterialButton(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     onPressed: () {
                       Navigator.pop(dialogContext);
                       Navigator.pop(context);
@@ -305,7 +323,7 @@ class _PlayPageState extends State<PlayPage> {
                     minWidth: 98,
                     color: Colors.white24,
                     child: Text(
-                      "OK",
+                      "Exit",
                       style: GoogleFonts.rubik(color: Colors.white),
                     ),
                   )
@@ -314,5 +332,24 @@ class _PlayPageState extends State<PlayPage> {
             ),
           );
         });
+  }
+
+  _onPlayAgain() {
+    setState(() {
+      time = maxTime;
+      score = 0;
+      process = 1;
+      quiz = MathHelper.initMath(widget.maths, _getLevel(score));
+      playAgainCount++;
+    });
+    Navigator.pop(context);
+    timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (time <= 0) {
+        timer.cancel();
+        _showResult(context);
+      }
+      time--;
+      setState(() => process = time / maxTime);
+    });
   }
 }
